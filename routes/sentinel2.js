@@ -29,23 +29,41 @@ let lastResult = null;
 let lastError = null;
 let lastRequestTime = null;
 
-// Función para inicializar Earth Engine
+// Función para inicializar Earth Engine con timeout
 async function initEarthEngine() {
   if (eeInitialized) return;
+  if (eeInitPromise) return eeInitPromise;
   
-  return new Promise((resolve, reject) => {
-    ee.data.authenticate({
-      client_email: serviceAccount.client_email,
-      private_key: serviceAccount.private_key,
-      project: serviceAccount.project_id
-    }, () => {
-      ee.initialize(null, () => {
-        console.log('✅ Earth Engine inicializado');
-        eeInitialized = true;
-        resolve();
-      }, reject);
-    }, reject);
+  // Promesa con timeout
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('Timeout: Earth Engine no respondió en 120 segundos'));
+    }, 120000); // 2 minutos de timeout
   });
+
+  eeInitPromise = Promise.race([
+    new Promise((resolve, reject) => {
+      console.log('🔄 Paso 2: Inicializando Earth Engine...');
+      ee.data.authenticate({
+        client_email: serviceAccount.client_email,
+        private_key: serviceAccount.private_key,
+        project: serviceAccount.project_id
+      }, () => {
+        console.log('✅ Paso 3: Autenticación exitosa');
+        ee.initialize(null, () => {
+          console.log('✅ Paso 4: Earth Engine inicializado');
+          eeInitialized = true;
+          resolve();
+        }, reject);
+      }, (error) => {
+        console.error('❌ Error en autenticación:', error);
+        reject(error);
+      });
+    }),
+    timeoutPromise
+  ]);
+
+  return eeInitPromise;
 }
 
 // Ruta para iniciar el procesamiento
