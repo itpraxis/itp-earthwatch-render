@@ -16,7 +16,7 @@ global.fetch = require('node-fetch');
 // Importa Earth Engine
 const ee = require('@google/earthengine');
 
-// Carga la cuenta de servicio desde variables de entorno
+// Carga la cuenta de servicio
 const serviceAccount = {
   project_id: process.env.EE_PROJECT_ID,
   client_email: process.env.EE_CLIENT_EMAIL,
@@ -24,6 +24,10 @@ const serviceAccount = {
 };
 
 let eeInitialized = false;
+let processing = false;
+let lastResult = null;
+let lastError = null;
+let lastRequestTime = null;
 
 // Función para inicializar Earth Engine
 async function initEarthEngine() {
@@ -44,7 +48,7 @@ async function initEarthEngine() {
   });
 }
 
-// Ruta POST para obtener imágenes de Sentinel-2
+// Ruta para iniciar el procesamiento
 router.post('/sentinel2', async (req, res) => {
   try {
     const { coordinates } = req.body;
@@ -52,6 +56,61 @@ router.post('/sentinel2', async (req, res) => {
     if (!coordinates) {
       return res.status(400).json({ error: 'Faltan coordenadas' });
     }
+
+    // Responde inmediatamente
+    res.json({ 
+      status: 'processing',
+      message: 'El procesamiento ha comenzado. Verifica el estado en 2 minutos.',
+      requestId: Date.now()
+    });
+
+    // Procesa en segundo plano
+    processInBackground(coordinates);
+
+  } catch (error) {
+    console.error('❌ Error en solicitud:', error);
+    // Igual responde al cliente
+    res.status(500).json({ 
+      error: 'Error interno',
+      details: error.message 
+    });
+  }
+});
+
+// Ruta para obtener el resultado
+router.get('/status', (req, res) => {
+  if (lastResult) {
+    res.json({ 
+      status: 'completed', 
+      result: lastResult,
+      timestamp: lastRequestTime
+    });
+  } else if (lastError) {
+    res.json({ 
+      status: 'error', 
+      error: lastError,
+      timestamp: lastRequestTime
+    });
+  } else if (processing) {
+    res.json({ 
+      status: 'processing', 
+      message: 'Aún procesando. Espera 2 minutos.' 
+    });
+  } else {
+    res.json({ 
+      status: 'idle', 
+      message: 'No hay procesamiento activo' 
+    });
+  }
+});
+
+// Función de procesamiento en segundo plano
+async function processInBackground(coordinates) {
+  try {
+    console.log('🔄 Iniciando procesamiento en segundo plano...');
+    processing = true;
+    lastError = null;
+    lastRequestTime = new Date().toISOString();
 
     // Asegúrate de que Earth Engine esté inicializado
     await initEarthEngine();
@@ -68,7 +127,9 @@ router.post('/sentinel2', async (req, res) => {
       .first();
 
     if (!collection) {
-      return res.status(404).json({ error: 'No se encontraron imágenes' });
+      lastError = 'No se encontraron imágenes';
+      console.log('❌ No se encontraron imágenes');
+      return;
     }
 
     // Genera la URL de la imagen
@@ -86,16 +147,16 @@ router.post('/sentinel2', async (req, res) => {
     });
 
     const url = `https://earthengine.googleapis.com/api/thumb?thumbid=${thumbId.thumbid}`;
-
-    res.json({ url });
+    
+    lastResult = { url };
+    console.log('✅ Procesamiento completado:', url);
 
   } catch (error) {
-    console.error('❌ Error:', error);
-    res.status(500).json({ 
-      error: 'Error interno del servidor',
-      details: error.message 
-    });
+    lastError = error.message;
+    console.error('❌ Error en procesamiento:', error);
+  } finally {
+    processing = false;
   }
-});
+}
 
 module.exports = router;
