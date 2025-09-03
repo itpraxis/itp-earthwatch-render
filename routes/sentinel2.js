@@ -23,11 +23,14 @@ const serviceAccount = {
   private_key: process.env.EE_PRIVATE_KEY.replace(/\\n/g, '\n')
 };
 
+// Estado de inicialización
 let eeInitialized = false;
+let eeInitPromise = null;  // ← Debe estar aquí
 let processing = false;
 let lastResult = null;
 let lastError = null;
 let lastRequestTime = null;
+
 
 // Función para inicializar Earth Engine con timeout
 async function initEarthEngine() {
