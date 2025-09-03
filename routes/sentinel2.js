@@ -107,18 +107,18 @@ router.get('/status', (req, res) => {
 // Función de procesamiento en segundo plano
 async function processInBackground(coordinates) {
   try {
-    console.log('🔄 Iniciando procesamiento en segundo plano...');
+    console.log('🔄 Paso 1: Iniciando procesamiento en segundo plano...');
     processing = true;
     lastError = null;
     lastRequestTime = new Date().toISOString();
 
-    // Asegúrate de que Earth Engine esté inicializado
+    console.log('🔄 Paso 2: Inicializando Earth Engine...');
     await initEarthEngine();
 
-    // Crea el área de interés
+    console.log('✅ Paso 3: Earth Engine inicializado. Creando AOI...');
     const aoi = ee.Geometry.Polygon([coordinates]);
 
-    // Filtra la colección de Sentinel-2
+    console.log('🔍 Paso 4: Buscando imágenes en COPERNICUS/S2_SR...');
     const collection = ee.ImageCollection('COPERNICUS/S2_SR')
       .filterBounds(aoi)
       .filterDate('2024-01-01', '2024-06-01')
@@ -132,7 +132,7 @@ async function processInBackground(coordinates) {
       return;
     }
 
-    // Genera la URL de la imagen
+    console.log('📐 Paso 5: Generando URL de la imagen...');
     const thumbId = await new Promise((resolve, reject) => {
       collection.getThumbId({
         bands: ['B4', 'B3', 'B2'],
@@ -141,19 +141,24 @@ async function processInBackground(coordinates) {
         dimensions: '512x512',
         format: 'png'
       }, (err, thumbId) => {
-        if (err) reject(err);
-        else resolve(thumbId);
+        if (err) {
+          console.error('❌ Error en getThumbId:', err);
+          reject(err);
+        } else {
+          console.log('✅ thumbId generado:', thumbId);
+          resolve(thumbId);
+        }
       });
     });
 
     const url = `https://earthengine.googleapis.com/api/thumb?thumbid=${thumbId.thumbid}`;
     
     lastResult = { url };
-    console.log('✅ Procesamiento completado:', url);
+    console.log('🎉 Procesamiento completado con éxito:', url);
 
   } catch (error) {
     lastError = error.message;
-    console.error('❌ Error en procesamiento:', error);
+    console.error('❌ Error CRÍTICO en procesamiento:', error);
   } finally {
     processing = false;
   }
