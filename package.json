@@ -1,0 +1,16 @@
+{
+  "name": "itp-earthwatch-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "jsdom": "^24.1.0",
+    "node-fetch": "^3.3.2",
+    "buffer": "^6.0.3",
+    "@google/earthengine": "^1.6.4",
+    "dotenv": "^16.4.5"
+  }
+}
